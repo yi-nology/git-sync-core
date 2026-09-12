@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -22,12 +23,54 @@ func isDuplicateKeyErr(err error) bool {
 		strings.Contains(msg, "duplicate key") // PostgreSQL
 }
 
-func (s *Service) ReceiveWebhook(ctx context.Context, repoKey string, req *http.Request) error {
+// WebhookPayload 是协议无关的入站 Webhook 载荷。
+// core 不提供 HTTP 服务端；壳层（hz/gin/…）负责收包后转成该结构再调用。
+// 内部会拼一个临时 *http.Request 交给 git-platform-sdk 做验签/解析（SDK 契约如此），
+// 库对外 API 不暴露 Web 服务器语义。
+type WebhookPayload struct {
+	Method     string
+	Path       string
+	Header     map[string][]string
+	Body       []byte
+	RemoteAddr string
+}
+
+// toHTTPRequest 仅用于对接 SDK 的 WebhookManager，勿在业务路径外使用。
+func (p *WebhookPayload) toHTTPRequest() *http.Request {
+	method := p.Method
+	if method == "" {
+		method = http.MethodPost
+	}
+	path := p.Path
+	if path == "" {
+		path = "/"
+	}
+	req, err := http.NewRequest(method, path, bytes.NewReader(p.Body))
+	if err != nil {
+		// NewRequest 对 method/path 的合法组合几乎不失败；兜底用 POST /
+		req, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader(p.Body))
+	}
+	for k, vals := range p.Header {
+		for _, v := range vals {
+			req.Header.Add(k, v)
+		}
+	}
+	req.RemoteAddr = p.RemoteAddr
+	req.ContentLength = int64(len(p.Body))
+	return req
+}
+
+func (s *Service) ReceiveWebhook(ctx context.Context, repoKey string, payload *WebhookPayload) error {
+	if payload == nil {
+		return fmt.Errorf("webhook payload is nil")
+	}
+
 	repo, prov, err := s.repos.GetRepoWithProvider(repoKey)
 	if err != nil {
 		return err
 	}
 
+	req := payload.toHTTPRequest()
 	if err := prov.ValidateWebhookSignature(req, repo.WebhookSecret); err != nil {
 		return fmt.Errorf("invalid webhook signature: %w", err)
 	}

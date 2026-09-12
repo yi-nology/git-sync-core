@@ -19,6 +19,8 @@ type Config struct {
 	Log      LogConfig      `yaml:"log"`
 }
 
+// ServerConfig 壳层 HTTP 监听与 API Key 配置。
+// core 库本身不监听端口、不校验 API Key；字段仅供公网/内网壳读取。
 type ServerConfig struct {
 	Host   string `yaml:"host" env:"GIT_SYNC_SERVER_HOST"`
 	Port   int    `yaml:"port" env:"GIT_SYNC_SERVER_PORT"`
