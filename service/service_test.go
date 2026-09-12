@@ -43,21 +43,6 @@ func TestServiceGetConfig(t *testing.T) {
 	assert.Same(t, cfg, result, "Expected same config pointer")
 }
 
-func TestServiceGetAPIKey(t *testing.T) {
-	cfg := &model.Config{
-		Server: model.ServerConfig{
-			APIKey: "test-api-key",
-		},
-	}
-
-	svc := &Service{
-		config: cfg,
-	}
-
-	result := svc.GetAPIKey()
-	assert.Equal(t, "test-api-key", result, "Expected 'test-api-key'")
-}
-
 func TestServiceHealthCheckNoRedis(t *testing.T) {
 	// Skip this test as it requires a database connection
 	t.Skip("Skipping HealthCheck test - requires database")

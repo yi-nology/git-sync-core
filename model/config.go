@@ -19,13 +19,13 @@ type Config struct {
 	Log      LogConfig      `yaml:"log"`
 }
 
-// ServerConfig 壳层 HTTP 监听与 API Key 配置。
-// core 库本身不监听端口、不校验 API Key；字段仅供公网/内网壳读取。
+// ServerConfig 壳层 HTTP 监听相关配置。
+// 用户登录 / API Key / SSO 等鉴权不属于本库；由 git-sync-service / git-sync-intranet 自行持有。
+// core 库本身不监听端口、不做用户鉴权。
 type ServerConfig struct {
-	Host   string `yaml:"host" env:"GIT_SYNC_SERVER_HOST"`
-	Port   int    `yaml:"port" env:"GIT_SYNC_SERVER_PORT"`
-	Mode   string `yaml:"mode" env:"GIT_SYNC_SERVER_MODE"`
-	APIKey string `yaml:"api_key" env:"GIT_SYNC_SERVER_API_KEY"`
+	Host string `yaml:"host" env:"GIT_SYNC_SERVER_HOST"`
+	Port int    `yaml:"port" env:"GIT_SYNC_SERVER_PORT"`
+	Mode string `yaml:"mode" env:"GIT_SYNC_SERVER_MODE"`
 }
 
 type DatabaseConfig struct {
@@ -110,10 +110,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		c.Server.Port = DefaultPort
-	}
-	// 拒绝已知的测试默认 API Key,防止裸部署
-	if c.Server.APIKey == "test-api-key-123" {
-		return fmt.Errorf("refusing to start with default test API key; set a real api_key in config")
 	}
 	if c.Database.Driver == "" {
 		return fmt.Errorf("database driver is required")

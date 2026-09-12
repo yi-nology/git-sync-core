@@ -198,10 +198,6 @@ func (s *Service) GetConfig() *model.Config {
 	return s.config
 }
 
-func (s *Service) GetAPIKey() string {
-	return s.config.Server.APIKey
-}
-
 // CreateRun creates a new sync run record. Satisfies executor.RunManager.
 func (s *Service) CreateRun(task *model.SyncTask, trigger string, webhookEventID *uint) (*model.SyncRun, error) {
 	return s.tasks.CreateRun(task, trigger, webhookEventID)
