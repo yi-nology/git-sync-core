@@ -1,0 +1,15 @@
+# Binaries / test
+*.exe
+*.test
+*.out
+coverage.out
+output/
+
+# Env / IDE
+.env
+.idea/
+.vscode/
+.DS_Store
+
+# Data
+data/
