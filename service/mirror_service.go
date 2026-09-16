@@ -551,6 +551,10 @@ func (m *MirrorService) publishOne(ctx context.Context, ch *model.MirrorChannel,
 		return nil, err
 	}
 	_ = cleanup
+	// 预检/发布都要先把目标仓库接为本地克隆的远端
+	if err := m.ensureTargetRemote(ctx, dir, t, gitbackend.AuthConfig{Type: gitbackend.AuthNone}); err != nil {
+		return nil, fmt.Errorf("配置目标远端失败: %w", err)
+	}
 	auth, err := m.targetAuth(t)
 	if err != nil {
 		return nil, err
