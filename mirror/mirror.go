@@ -59,6 +59,9 @@ type Options struct {
 	// AllowOverwrite 允许覆盖镜像远端上 tree 不一致的同名 tag。
 	// false 时检测到不一致直接报错,保护已发布版本不被误覆盖。
 	AllowOverwrite bool
+	// DryRun 为 true 时执行到远端一致性检查为止(校验、身份改写、门禁、
+	// 远端比对),不合成 commit/tag、不推送;用于发布前预检。
+	DryRun bool
 }
 
 // TagReport 是单个 tag 的发布报告。
@@ -250,6 +253,11 @@ func (p *publisher) publish(ctx context.Context, tag, mirrorURL string) (*TagRep
 	}
 
 	// --- 合成孤儿 commit 与附注 tag(身份/时间戳继承源 commit,保证幂等) ---
+	if p.opts.DryRun {
+		report.VerifyCmd = "go list -m " + p.opts.Mapping.Target + "@" + tag
+		slog.Info("mirror: 预检完成(未推送)", "tag", tag, "tree", report.Tree)
+		return report, nil
+	}
 	commitHash, tagHash, err := synthesizeRefs(p.workRepo.Storer, srcCommit, treeHash, tag, p.opts.Mapping)
 	if err != nil {
 		return nil, err
@@ -285,9 +293,9 @@ func (p *publisher) publish(ctx context.Context, tag, mirrorURL string) (*TagRep
 type compareResult int
 
 const (
-	compareUnknown compareResult = iota // 远端不可达/对象取回失败,无法比对
-	compareMatched                      // tree 一致(重跑幂等)
-	compareMismatched                   // tree 不一致(远端版本有分歧)
+	compareUnknown    compareResult = iota // 远端不可达/对象取回失败,无法比对
+	compareMatched                         // tree 一致(重跑幂等)
+	compareMismatched                      // tree 不一致(远端版本有分歧)
 )
 
 // checkRemoteTag 比对镜像远端同名 tag 的 tree 与本次合成结果。
@@ -402,6 +410,12 @@ func goGitAuth(a gitbackend.AuthConfig) (transport.AuthMethod, error) {
 	default:
 		return nil, fmt.Errorf("不支持的认证类型: %s", a.Type)
 	}
+}
+
+// ReadModulePath 从 dir/go.mod 解析 module 行(兼容带引号写法),供壳层
+// 创建通道时带出源模块身份。
+func ReadModulePath(dir string) (string, error) {
+	return readModulePath(dir)
 }
 
 // readModulePath 从 RepoDir/go.mod 解析 module 行(兼容带引号写法)。

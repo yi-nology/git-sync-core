@@ -47,6 +47,9 @@ func InitDB(driver, dsn string) (*gorm.DB, error) {
 		&WebhookRuleTask{},
 		&WebhookEvent{},
 		&OperationLog{},
+		&MirrorChannel{},
+		&MirrorTarget{},
+		&MirrorRun{},
 	)
 	if err != nil {
 		return nil, err

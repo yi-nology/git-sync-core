@@ -37,6 +37,7 @@ type Service struct {
 	cronEntryIDs    map[string]cron.EntryID
 	cronMu          sync.RWMutex
 	executor        *executor.Executor
+	mirror          *MirrorService
 	lastTriggerTime sync.Map
 	// guard 统一封装”同 taskKey 互斥 + 全局并发上限”;配 redis 时为分布式,否则进程内。
 	guard concurrencyGuard
@@ -131,6 +132,12 @@ func NewService(cfg *Config) (*Service, error) {
 		return nil, errors.Wrap(err, "init executor failed")
 	}
 	svc.executor = exec
+
+	mirrorSvc, err := NewMirrorService(svc, db)
+	if err != nil {
+		return nil, errors.Wrap(err, "init mirror service failed")
+	}
+	svc.mirror = mirrorSvc
 
 	svc.wg.Add(1)
 	go func() {
