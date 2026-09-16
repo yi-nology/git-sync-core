@@ -205,6 +205,11 @@ func (s *Service) GetConfig() *model.Config {
 	return s.config
 }
 
+// Mirror 返回镜像通道服务(开源发布/仓库备份)。
+func (s *Service) Mirror() *MirrorService {
+	return s.mirror
+}
+
 // CreateRun creates a new sync run record. Satisfies executor.RunManager.
 func (s *Service) CreateRun(task *model.SyncTask, trigger string, webhookEventID *uint) (*model.SyncRun, error) {
 	return s.tasks.CreateRun(task, trigger, webhookEventID)
