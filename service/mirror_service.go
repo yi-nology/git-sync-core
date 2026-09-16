@@ -603,6 +603,20 @@ func (m *MirrorService) VerifyMirrorTargetVersion(ctx context.Context, channelID
 
 // ---------- 版本矩阵 ----------
 
+// ListMirrorRuns 分页列出通道执行记录。
+func (m *MirrorService) ListMirrorRuns(channelID uint, page dao.Pagination) ([]*model.MirrorRun, int64, error) {
+	return m.runs.FindByChannel(channelID, page)
+}
+
+// GetMirrorRun 单条执行记录详情。
+func (m *MirrorService) GetMirrorRun(id uint) (*model.MirrorRun, error) {
+	run, err := m.runs.FindByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("执行记录不存在: %d", id)
+	}
+	return run, nil
+}
+
 type MirrorVersionTarget struct {
 	TargetID   uint   `json:"targetId"`
 	Target     string `json:"target"`
