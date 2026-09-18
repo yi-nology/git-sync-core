@@ -28,7 +28,8 @@ func (d *WebhookEventDAO) FindByEventID(eventID string) (*model.WebhookEvent, er
 
 func (d *WebhookEventDAO) FindByRepoKey(repoKey string, page Pagination) ([]*model.WebhookEvent, int64, error) {
 	var events []*model.WebhookEvent
-	query := d.db.Where("repo_key = ?", repoKey)
+	// 列表场景不需要原始 payload(可达 10MB),单独的详情路径再取全文
+	query := d.db.Omit("payload").Where("repo_key = ?", repoKey)
 	total, err := Paginate(query, page, &events)
 	return events, total, err
 }

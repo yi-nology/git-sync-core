@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -744,13 +745,9 @@ func (m *MirrorService) GetMirrorVersions(ctx context.Context, channelID uint) (
 		appendVersion(tag)
 	}
 	// 新版本在前(按 tag 名倒序的简单近似)
-	for i := 0; i < len(versions); i++ {
-		for j := i + 1; j < len(versions); j++ {
-			if versions[j].Tag > versions[i].Tag {
-				versions[i], versions[j] = versions[j], versions[i]
-			}
-		}
-	}
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].Tag > versions[j].Tag
+	})
 	return &MirrorVersionsResult{Mode: ch.Mode, Module: ch.Module, Versions: versions}, nil
 }
 

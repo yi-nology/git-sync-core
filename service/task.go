@@ -82,6 +82,32 @@ func (s *Service) RunTask(ctx context.Context, taskKey string) error {
 	return s.RunTaskWithTrigger(ctx, taskKey, model.TriggerManual, nil)
 }
 
+// RunTaskAsync 异步触发一次同步:校验与并发快速失败在调用方 goroutine 内完成,
+// 实际执行纳入 WaitGroup + bgCtx(优雅关停时被等待/取消),适合 HTTP 手动触发路径,
+// 避免 handler 被分钟级同步任务挂住。返回 nil 仅代表"已受理",结果见执行历史。
+func (s *Service) RunTaskAsync(taskKey, trigger string, webhookEventID *uint) error {
+	task, err := s.tasks.FindTaskByKey(taskKey)
+	if err != nil {
+		return err
+	}
+	if task == nil {
+		return ErrTaskNotFound
+	}
+	if !task.Enabled {
+		return ErrTaskDisabled
+	}
+
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		if _, err := s.executor.Execute(s.bgCtx, task, trigger, webhookEventID); err != nil {
+			// 结果已落 run 记录,这里仅留痕
+			slog.Warn("async task run failed", "task", taskKey, "error", err)
+		}
+	}()
+	return nil
+}
+
 // CountTasksByStatus returns task counts grouped by last_status (key "total" = overall).
 func (s *Service) CountTasksByStatus() (map[string]int64, error) {
 	return s.tasks.CountTasksByStatus()
