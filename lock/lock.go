@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -203,7 +204,10 @@ func (l *RedisLock) Lock(ctx context.Context, key string) error {
 			return nil
 		}
 
-		timer := time.NewTimer(backoff)
+		// 指数退避 + 随机 jitter 防惊群(crypto/rand 安全随机)
+		jitter, _ := rand.Int(rand.Reader, big.NewInt(int64(backoff)))
+		jitteredBackoff := backoff/2 + time.Duration(jitter.Int64())
+		timer := time.NewTimer(jitteredBackoff)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -373,6 +377,11 @@ func (l *LocalLock) Unlock(ctx context.Context, key string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if _, exists := l.entries[key]; !exists {
+		// 双重 Unlock 防护:不存在时返回错误而非静默成功,
+		// 避免调用方误以为释放成功而后续逻辑依赖错误的锁状态
+		return fmt.Errorf("local lock %q: not held (double unlock?)", key)
+	}
 	delete(l.entries, key)
 	return nil
 }

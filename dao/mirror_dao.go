@@ -112,10 +112,16 @@ func (d *MirrorRunDAO) FindAllByChannel(channelID uint) ([]*model.MirrorRun, err
 }
 
 // FindByChannelAndTargetAndTags 精确定位某个 tag 最近一次执行(矩阵合并)。
+// tags 是逗号分隔列表;用边界匹配替代旧的 %tag% 模糊匹配——
+// 否则 tag "v1" 会误匹配 "v10"、"revert-v1" 等不相关记录。
 func (d *MirrorRunDAO) FindByChannelAndTargetAndTags(channelID, targetID uint, tag string) ([]*model.MirrorRun, error) {
 	var runs []*model.MirrorRun
-	err := d.db.Where("channel_id = ? AND target_id = ? AND tags LIKE ?",
-		channelID, targetID, "%"+tag+"%").Order("id DESC").Find(&runs).Error
+	// 覆盖四种位置:唯一、列表首、列表尾、列表中间
+	pat := d.db.Where(
+		"channel_id = ? AND target_id = ? AND (tags = ? OR tags LIKE ? OR tags LIKE ? OR tags LIKE ?)",
+		channelID, targetID, tag, tag+",%", "%,"+tag, "%,"+tag+",%",
+	)
+	err := pat.Order("id DESC").Find(&runs).Error
 	if err != nil {
 		return nil, err
 	}

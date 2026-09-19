@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -11,6 +12,22 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/storer"
 )
+
+// rewriteModulePath 在 blob 数据中做模块路径边界改写。
+// 替代 bytes.ReplaceAll——旧实现会把 github.com/a/b-extra 中的
+// github.com/a/b 也替换,产生语义错误的 module path。
+// 改用正则:源路径后必须跟非 Go 模块路径字符(或文本末尾)才替换,
+// 使 github.com/a/b/pkg 仍被正确改写(子包路径),但 b-extra 不被误改。
+var modulePathTerminator = regexp.MustCompile(`[^a-zA-Z0-9_.\-]|$`)
+
+func rewriteModulePath(data []byte, source, target string) []byte {
+	if source == "" || target == "" || !bytes.Contains(data, []byte(source)) {
+		return data
+	}
+	// 匹配 "source + 边界字符",替换为 "target + 原边界字符"
+	re := regexp.MustCompile(`(` + regexp.QuoteMeta(source) + `)(` + modulePathTerminator.String() + `)`)
+	return re.ReplaceAll(data, []byte(target+"$2"))
+}
 
 // maxRewriteSize 是参与身份改写扫描的 blob 大小上限;超过者按原样保留
 // (二进制大文件不可能承载模块身份,与"替换范围排除二进制"一致,
@@ -61,7 +78,11 @@ func (b *builder) rewriteTree(srcHash plumbing.Hash, prefix string) (plumbing.Ha
 				}
 				continue
 			}
-			rewritten := bytes.ReplaceAll(data, []byte(b.mapping.Source), []byte(b.mapping.Target))
+			// 模块路径边界改写:旧实现 bytes.ReplaceAll 会把 github.com/a/b-extra
+			// 中的 github.com/a/b 也替换为 github.com/x/y(产生错误路径)。
+			// 改用正则:源路径后必须跟非 Go 模块路径字符(或文本末尾)才替换,
+			// 使 github.com/a/b/pkg 仍被正确改写(子包),但 b-extra 不被误改。
+			rewritten := rewriteModulePath(data, b.mapping.Source, b.mapping.Target)
 			h, err := b.writeBlob(rewritten)
 			if err != nil {
 				return plumbing.ZeroHash, err

@@ -252,6 +252,7 @@ func (s *Service) GetPlatformByID(ctx context.Context, id uint) (*model.Platform
 
 // HealthCheck checks the health of all dependencies.
 // Returns a map of component name to "ok" or error message.
+// 内部对每个组件设置 5s 超时:基础设施卡住时健康检查不会无限阻塞。
 func (s *Service) HealthCheck() map[string]string {
 	status := map[string]string{
 		"database": "ok",
@@ -259,17 +260,33 @@ func (s *Service) HealthCheck() map[string]string {
 		"service":  "ok",
 	}
 
-	// Check database connectivity (公开端点不暴露连接池内部指标,避免信息泄露)
-	if err := s.sqlDB.Ping(); err != nil {
-		slog.Error("healthcheck: db ping failed", "error", err)
-		status["database"] = "unhealthy"
+	// Check database connectivity with timeout
+	dbDone := make(chan error, 1)
+	go func() { dbDone <- s.sqlDB.Ping() }()
+	select {
+	case err := <-dbDone:
+		if err != nil {
+			slog.Error("healthcheck: db ping failed", "error", err)
+			status["database"] = "unhealthy"
+		}
+	case <-time.After(5 * time.Second):
+		slog.Error("healthcheck: db ping timed out")
+		status["database"] = "timeout"
 	}
 
-	// Check Redis connectivity (if configured)
+	// Check Redis connectivity (if configured) with timeout
 	if s.config.Redis.Addr != "" {
-		if err := s.guard.Ping(); err != nil {
-			slog.Error("healthcheck: redis ping failed", "error", err)
-			status["redis"] = "unhealthy"
+		redisDone := make(chan error, 1)
+		go func() { redisDone <- s.guard.Ping() }()
+		select {
+		case err := <-redisDone:
+			if err != nil {
+				slog.Error("healthcheck: redis ping failed", "error", err)
+				status["redis"] = "unhealthy"
+			}
+		case <-time.After(5 * time.Second):
+			slog.Error("healthcheck: redis ping timed out")
+			status["redis"] = "timeout"
 		}
 	} else {
 		status["redis"] = "not configured"

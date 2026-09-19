@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
@@ -51,8 +52,18 @@ func materializeTree(st storer.EncodedObjectStorer, treeHash plumbing.Hash, dir 
 			if err != nil {
 				return err
 			}
+			target := string(data)
+			// 安全检查:拒绝绝对路径与逃逸 buildDir 的相对路径,
+			// 防止恶意仓库通过 symlink 读取构建环境敏感文件
+			if filepath.IsAbs(target) {
+				return fmt.Errorf("拒绝不安全的 symlink %s: 绝对路径 %q", entry.Name, target)
+			}
+			resolved := filepath.Join(filepath.Dir(path), target)
+			if !strings.HasPrefix(resolved, filepath.Clean(dir)+string(filepath.Separator)) {
+				return fmt.Errorf("拒绝不安全的 symlink %s: 目标 %q 逃逸构建目录", entry.Name, target)
+			}
 			_ = os.Remove(path)
-			if err := os.Symlink(string(data), path); err != nil {
+			if err := os.Symlink(target, path); err != nil {
 				return fmt.Errorf("重建 symlink %s 失败: %w", entry.Name, err)
 			}
 		default:

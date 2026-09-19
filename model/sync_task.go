@@ -46,14 +46,17 @@ type CreateTaskRequest struct {
 }
 
 type UpdateTaskRequest struct {
-	Key          string `json:"key"`
-	Name         string `json:"name"`
+	Key   string `json:"key"`
+	Name  string `json:"name"`
+	// SourceBranch/TargetBranch/SyncMode/Cron:空字符串=不修改
 	SourceBranch string `json:"source_branch"`
 	TargetBranch string `json:"target_branch"`
 	SyncMode     string `json:"sync_mode"`
 	Cron         string `json:"cron"`
-	Enabled      bool   `json:"enabled"`
-	GitTags      bool   `json:"git_tags"`
-	GitForce     bool   `json:"git_force"`
-	GitPrune     bool   `json:"git_prune"`
+	// bool 字段用指针:nil=不修改,false=显式关闭。
+	// 替代旧 bool 零值语义——此前客户端只改 name 也会把任务静默禁用。
+	Enabled  *bool `json:"enabled"`
+	GitTags  *bool `json:"git_tags"`
+	GitForce *bool `json:"git_force"`
+	GitPrune *bool `json:"git_prune"`
 }

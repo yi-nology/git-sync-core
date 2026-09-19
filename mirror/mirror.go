@@ -242,7 +242,15 @@ func (p *publisher) publish(ctx context.Context, tag, mirrorURL string) (*TagRep
 	// --- 远端一致性检查:同名 tag 已存在且 tree 不一致时默认中止 ---
 	res, existed, overwrote, err := p.checkRemoteTag(ctx, tag, treeHash)
 	if err != nil {
-		slog.Warn("mirror: 远端一致性检查不可用,按远端无同名 tag 继续", "tag", tag, "error", err)
+		// 远端为空仓库是首次发布的正常状态(无内容可覆盖),安全跳过
+		if strings.Contains(err.Error(), "empty") {
+			slog.Info("mirror: 远端为空仓库(首次发布),跳过一致性检查", "tag", tag)
+		} else if !p.opts.AllowOverwrite {
+			// 网络故障/认证失败时无法确认远端状态,拒绝盲推防覆盖已发布版本
+			return nil, fmt.Errorf("远端一致性检查失败(拒绝盲推,防覆盖已发布版本;确认覆盖请设置 AllowOverwrite): %w", err)
+		} else {
+			slog.Warn("mirror: 远端一致性检查不可用,AllowOverwrite 已开启,继续推送", "tag", tag, "error", err)
+		}
 	}
 	report.RemoteTagExisted = existed
 	report.TreeMatchedRemote = res == compareMatched

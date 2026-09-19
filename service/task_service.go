@@ -127,10 +127,19 @@ func (ts *TaskService) UpdateTask(ctx context.Context, req *model.UpdateTaskRequ
 	if req.Cron != "" {
 		task.Cron = req.Cron
 	}
-	task.Enabled = req.Enabled
-	task.GitTags = req.GitTags
-	task.GitForce = req.GitForce
-	task.GitPrune = req.GitPrune
+	// bool 字段:仅当请求显式携带时才更新(nil = 不修改)
+	if req.Enabled != nil {
+		task.Enabled = *req.Enabled
+	}
+	if req.GitTags != nil {
+		task.GitTags = *req.GitTags
+	}
+	if req.GitForce != nil {
+		task.GitForce = *req.GitForce
+	}
+	if req.GitPrune != nil {
+		task.GitPrune = *req.GitPrune
+	}
 
 	if err := ts.taskDAO.Update(task); err != nil {
 		return nil, err

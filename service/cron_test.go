@@ -181,9 +181,10 @@ func TestStartCronJobs_WithDisabledTasks(t *testing.T) {
 	require.NoError(t, err, "Create task2 failed")
 
 	// Update task2 to set enabled=false using the actual key
+	disabled := false
 	_, err = svc.tasks.UpdateTask(context.TODO(), &model.UpdateTaskRequest{
 		Key:     task2.Key,
-		Enabled: false,
+		Enabled: &disabled,
 	})
 	require.NoError(t, err, "Update task2 failed")
 
