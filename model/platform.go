@@ -3,6 +3,7 @@ package model
 import (
 	"time"
 
+	"github.com/yi-nology/git-platform-sdk/provider"
 	"gorm.io/gorm"
 )
 
@@ -32,29 +33,19 @@ func (Platform) TableName() string {
 	return "platforms"
 }
 
-// PlatformType 平台类型常量
+// 平台类型常量:SDK 已注册平台直接复用 provider.Platform 常量(字符串值相同);
+// SDK 未注册的扩展类型保留本地定义。
 const (
-	PlatformTypeGitHub      = "github"
-	PlatformTypeGitLab      = "gitlab"
-	PlatformTypeGitea       = "gitea"
-	PlatformTypeGitee       = "gitee"
-	PlatformTypeGitCode     = "gitcode"
-	PlatformTypeAtomGit     = "atomgit"
-	PlatformTypeTencentCode = "tencent_code"
-	PlatformTypeCustom      = "custom"
+	PlatformTypeGitHub      = string(provider.PlatformGitHub)      // "github"
+	PlatformTypeGitLab      = string(provider.PlatformGitLab)      // "gitlab"
+	PlatformTypeGitea       = string(provider.PlatformGitea)       // "gitea"
+	PlatformTypeGitee       = string(provider.PlatformGitee)       // "gitee"
+	PlatformTypeGitCode     = string(provider.PlatformGitCode)     // "gitcode"
+	PlatformTypeTencentCode = string(provider.PlatformTencentCode) // "tencent_code"
+	// SDK 未注册的扩展类型
+	PlatformTypeAtomGit = "atomgit"
+	PlatformTypeCustom  = "custom"
 )
-
-// ValidPlatformTypes 合法的平台类型集合,用于输入校验。
-var ValidPlatformTypes = map[string]bool{
-	PlatformTypeGitHub:      true,
-	PlatformTypeGitLab:      true,
-	PlatformTypeGitea:       true,
-	PlatformTypeGitee:       true,
-	PlatformTypeGitCode:     true,
-	PlatformTypeAtomGit:     true,
-	PlatformTypeTencentCode: true,
-	PlatformTypeCustom:      true,
-}
 
 // PlatformStatus 平台状态常量
 const (
@@ -62,7 +53,20 @@ const (
 	PlatformStatusError  = "error"
 )
 
-// PlatformAPIPaths 各平台的 API 路径
+// ValidPlatformType 检查平台类型是否合法:SDK 已注册平台 + 扩展白名单。
+// 替代旧的 ValidPlatformTypes 静态 map,与 SDK 注册表自动同步。
+func ValidPlatformType(t string) bool {
+	return provider.IsRegistered(provider.Platform(t)) || extensionPlatforms[t]
+}
+
+// extensionPlatforms SDK 未注册但业务支持的扩展平台。
+var extensionPlatforms = map[string]bool{
+	PlatformTypeAtomGit: true,
+	PlatformTypeCustom:  true,
+}
+
+// PlatformAPIPaths 各平台的 API 路径(壳层 GetAPIURL 用)。
+// SDK 已注册平台的值作为已知默认;扩展平台是唯一数据源。
 var PlatformAPIPaths = map[string]string{
 	PlatformTypeGitHub:      "/api/v3",
 	PlatformTypeGitLab:      "/api/v4",
@@ -73,7 +77,7 @@ var PlatformAPIPaths = map[string]string{
 	PlatformTypeTencentCode: "/api/v3",
 }
 
-// PlatformDefaultInstances 各平台的默认实例地址
+// PlatformDefaultInstances 各平台的默认实例地址。
 var PlatformDefaultInstances = map[string]string{
 	PlatformTypeGitHub:      "github.com",
 	PlatformTypeGitLab:      "gitlab.com",
@@ -84,7 +88,10 @@ var PlatformDefaultInstances = map[string]string{
 	PlatformTypeTencentCode: "git.code.tencent.com",
 }
 
-// GetAPIURL 根据实例地址生成 API URL
+// GetAPIURL 根据实例地址生成 API URL。
+// 自建实例(非默认域名)的 URL 由壳层传入 instanceURL 覆盖;
+// SDK 的 provider.NewProvider 也能推导已知平台的 URL,但 DB 字段 NOT NULL
+// 要求壳层在创建时就提供非空值,因此保留此辅助函数。
 func GetAPIURL(platformType, instanceURL string) string {
 	if instanceURL == "" {
 		instanceURL = PlatformDefaultInstances[platformType]
